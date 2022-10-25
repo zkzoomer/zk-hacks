@@ -14,7 +14,11 @@ $$
 
 This secret key is what is being used to sign messages, but before we do that, it is necessary to map this message onto a point in the group $G_2$. This signature scheme is based on the wonderful properties of bilinear maps, which we get when using this two special elliptic curves.
 
-To do this, first we need to convert the arbitrary message into a constant size. The cryptographer's favorite way of doing so is via a hash function, and for Alice this is $blake2$. The corresponding digest is 256 bits, but this is still not necessarily a point in the group. The way that Alice solves this is by using the Pedersen Hash. The idea is to use this array of bits ($b_i$), as well as a certain number of fixed points ($P_i$), to arrive at a point inside the group, which we can call the hash of the original message:
+To do this, first we need to convert the arbitrary message into a constant size. The cryptographer's favorite way of doing so is via a hash function, and for Alice this is $blake2$. The corresponding digest is 256 bits, but this is still not necessarily a point in the group. The way that Alice solves this is by using the Pedersen Hash. The idea is to use this array of bits (
+$b_i$
+), as well as a certain number of fixed points (
+$P_i$
+), to arrive at a point inside the group, which we can call the hash of the original message:
 
 $$
 H(m) = \sum_i b_i \cdot P_i
@@ -26,8 +30,14 @@ $$
 \sigma = [sk] H(m)
 $$
 
-This signature can then be verified by the additional use of the original message, $m$, and the corresponding public key, $pk$. This is where the wonderful properties of bilinear maps come into play. This is represented in our pairing function, which takes a point $P \in G_1 \subset	E(F_q)$ and a point $Q \in G_2 \subset	E'(F_{q^2})$ and outputs a point from a group $G_T \subset F_{q^{12}}$. That is, for a pairing $e, e : G_1 \times
-G_2 \rightarrow G_T$.
+This signature can then be verified by the additional use of the original message, $m$, and the corresponding public key, $pk$. This is where the wonderful properties of bilinear maps come into play. This is represented in our pairing function, which takes a point $P \in G_1 \subset	E(F_q)$ 
+and a point 
+$Q \in G_2 \subset	E'(F_{q^2})$ 
+and outputs a point from a group 
+$G_T \subset F_{q^{12}}$
+. That is, for a pairing 
+$e, e : G_1 \times G_2 \rightarrow G_T$
+.
 
 We can denote this operation as $e(P, Q)$. Now, let's see the very special properties that pairings have:
 - $e(P, Q + R) = e(P, Q) \cdot e(P, R)$
@@ -35,10 +45,13 @@ We can denote this operation as $e(P, Q)$. Now, let's see the very special prope
 - $e(s \cdot A, B) = e(A, B)^s = e(A, s \cdot B)$
 
 These properties are used to verify digital signatures, as then it holds that: 
+
 $$
  e(pk, H(m)) = e([sk]g_1, H(m)) = e(g_1, H(m))^{(sk)} = e(g_1, [sk]H(m)) = e(g_1, \sigma) 
 $$
+
 And so a signature is valid if, and only if: 
+
 $$
 e(g_1, \sigma) = e(pk, H(m))
 $$
@@ -52,15 +65,22 @@ The vulnerability introduced here is in the linear combination used for the Pede
 - $\sigma_2 = [sk]PedersenHash(10) = [sk]P_2$
 
 We could easily forge a signature for the $11$ bit string by simply combining the previous two signatures:
+
 $$
 H(m) = PedersenHash(11) = P_1 + P_2
 $$
+
 $$
-e(pk, H(m)) = e(pk, P_1 + P_2) = e(pk, P_1) \cdot e(pk, P_2) = e([sk]g_1,P_1) \cdot e([sk]g_1, P_2) = \\
+e(pk, H(m)) = e(pk, P_1 + P_2) = e(pk, P_1) \cdot e(pk, P_2) = e([sk]g_1,P_1) \cdot e([sk]g_1, P_2) =
+$$
+
+$$
 = e(g_1, P_1)^{(sk)} \cdot e(g_1, P_2)^{(sk)} = e(g_1, [sk]P_1) \cdot e(g_1, [sk]P_2) = e(g_1, \sigma_1 + \sigma_2)
 $$
 
-So it is easy to see how one may forge a signature if they have the $P_i$ corresponding to bit arrays with a single $1$. But the question is, how do we extend this?
+So it is easy to see how one may forge a signature if they have the 
+$P_i$ 
+corresponding to bit arrays with a single $1$. But the question is, how do we extend this?
 
 First of all, we need to understand the data we have been given. We have a total of 256 messages and their corresponding signatures. But are these messages the digest of a blake2 hash, or are we dealing with its preimage (the original message)? From looking at the data we would think its the former, but running this simple bit of code:
 
@@ -71,17 +91,29 @@ verify(pk, &ms[0], sigs[0]);
 
 Lets us confirm that we are dealing with the actual original messages, as the function _verify_ here takes the _msg_ parameter and hashes it into the curve as specified earlier.
 
-So now that we understand the data we are given, let's understand the problem at hand. We are provided with 256 signatures that do not make for such neat bit constructions as described earlier, but the way to forge a signature is somewhat similar. Let's assume the result of hashing these into the curve make for a perfect 256 dimensional base. We can try an represent an arbitrary 256 bit vector, let's name it $x$, as a combination (using binary coefficients $b_i$) of the blake2 digests of the messages that were leaked, name them $v_i$:
+So now that we understand the data we are given, let's understand the problem at hand. We are provided with 256 signatures that do not make for such neat bit constructions as described earlier, but the way to forge a signature is somewhat similar. Let's assume the result of hashing these into the curve make for a perfect 256 dimensional base. We can try an represent an arbitrary 256 bit vector, let's name it $x$, as a combination (using binary coefficients 
+$b_i$
+) of the blake2 digests of the messages that were leaked, name them 
+$v_i$
+:
+
 $$
 x = \sum_i b_i \cdot v_i
 $$
+
 A Pedersen Hash is simply a linear combination of group elements, that either get added or not depending on the corresponding values of the bit array. We have also shown that we can represent an arbitrary 256 bit array as linear combination of the ones we have, and so, it is also possible to represent the Pedersen Hash of our message as linear combination of the leaked Pedersen Hashes: 
+
 $$
 H(m) = \sum_i \gamma_i \cdot H(m_i)
 $$
+
 How we find these coefficients is a different story, but if we can find them we can easily see how we could forge a signature:
+
 $$
-e(pk, H(m)) = e(g_1, \sigma) = e(pk, \sum_i \gamma_i \cdot H(m_i)) = \prod_i e(pk, \gamma_i \cdot H(m_i)) = \\
+e(pk, H(m)) = e(g_1, \sigma) = e(pk, \sum_i \gamma_i \cdot H(m_i)) = \prod_i e(pk, \gamma_i \cdot H(m_i)) =
+$$
+
+$$
 = \prod_i e(pk, H(m_i))^{\gamma_i} = \prod_i e(g_1, \sigma_i)^{\gamma_i} = e(g_1, \sum_i \gamma_i \cdot \sigma_i)
 $$
 
@@ -108,9 +140,7 @@ b^{m_{256}}_{1} & b^{m_{256}}_{2} &\cdots & b^{m_{256}}_{256}\\
            \vdots \\
            H(m_{256})
 \end{bmatrix}
-
 \longleftrightarrow
-
 \cdot \overrightarrow{P} = M \cdot \overrightarrow{H(m)} 
 $$
 
@@ -123,17 +153,13 @@ $$
 The coefficients $\gamma_i$ we look for must allow us to write the intermediate hash of our message as linear combination of the other intermediate hashes. Meaning our coefficients will be the result of solving the following equation:
 
 $$
-x_j = \sum_i M_{ij} \cdot \gamma_i
-
-\longleftrightarrow
-
+x_j = \sum_i M_{ij} \cdot \gamma_i \longleftrightarrow
 \begin{bmatrix}
            x_1 \\
            x_2 \\
            \vdots \\
            x_{256}
-\end{bmatrix}
-=
+\end{bmatrix}=
 \begin{bmatrix}
 b^{m_1}_{1} & b^{m_1}_{2} &\cdots & b^{m_1}_{256} \\
 b^{m_2}_{1} & b^{m_2}_{2} &\cdots & b^{m_2}_{256} \\
@@ -146,9 +172,7 @@ b^{m_{256}}_{1} & b^{m_{256}}_{2} &\cdots & b^{m_{256}}_{256}\\
            \vdots \\
            \gamma_{256}
 \end{bmatrix}
-
 \longleftrightarrow
-
 \overrightarrow{x} = M \cdot \overrightarrow{\gamma}
 $$
 
