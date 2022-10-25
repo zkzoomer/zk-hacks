@@ -14,7 +14,7 @@ $$
 
 This secret key is what is being used to sign messages, but before we do that, it is necessary to map this message onto a point in the group $G_2$. This signature scheme is based on the wonderful properties of bilinear maps, which we get when using this two special elliptic curves.
 
-To do this, first we need to convert the arbitrary message into a constant size. The cryptographer's favorite way of doing so is via a hash function, and for Alice this is $BLAKE2$. The corresponding digest is 256 bits, but this is still not necessarily a point in the group. The way that Alice solves this is by using the Pedersen Hash. The idea is to use this array of bits ($b_i$), as well as a certain number of fixed points ($P_i$), to arrive at a point inside the group, which we can call the hash of the original message:
+To do this, first we need to convert the arbitrary message into a constant size. The cryptographer's favorite way of doing so is via a hash function, and for Alice this is $blake2$. The corresponding digest is 256 bits, but this is still not necessarily a point in the group. The way that Alice solves this is by using the Pedersen Hash. The idea is to use this array of bits ($b_i$), as well as a certain number of fixed points ($P_i$), to arrive at a point inside the group, which we can call the hash of the original message:
 
 $$
 H(m) = \sum_i b_i \cdot P_i
@@ -45,7 +45,7 @@ $$
 
 ## Forging signatures
 
-BLS signature schemes, as well as BLAKE2 hashes, are all well battle tested, and it is well unlikely that a simple online problem is asking us to find a hash collision.
+BLS signature schemes, as well as blake2 hashes, are all well battle tested, and it is well unlikely that a simple online problem is asking us to find a hash collision.
 
 The vulnerability introduced here is in the linear combination used for the Pedersen hash. Imagine we have a 2 bit message space, and we know the signature for the following hashed messages:
 - $\sigma_1 = [sk]PedersenHash(01) = [sk]P_1$
@@ -62,7 +62,16 @@ $$
 
 So it is easy to see how one may forge a signature if they have the $P_i$ corresponding to bit arrays with a single $1$. But the question is, how do we extend this?
 
-We are provided with 256 signatures that do not make for such neat bit constructions, but the way to forge a signature is somewhat similar. Let's assume that the preimages of the 256 Pedersen Hashes make for a base in the 256 dimension space. We can try an represent an arbitrary 256 bit vector, let's name it $x$, as a combination (using binary coefficients $b_i$) of the preimages of the ones that were leaked, name them $v_i$:
+First of all, we need to understand the data we have been given. We have a total of 256 messages and their corresponding signatures. But are these messages the digest of a blake2 hash, or are we dealing with its preimage (the original message)? From looking at the data we would think its the former, but running this simple bit of code:
+
+```rs
+let (pk, ms, sigs) = puzzle_data();
+verify(pk, &ms[0], sigs[0]);
+```
+
+Lets us confirm that we are dealing with the actual original messages, as the function _verify_ here takes the _msg_ parameter and hashes it into the curve as specified earlier.
+
+So now that we understand the data we are given, let's understand the problem at hand. We are provided with 256 signatures that do not make for such neat bit constructions as described earlier, but the way to forge a signature is somewhat similar. Let's assume the result of hashing these into the curve make for a perfect 256 dimensional base. We can try an represent an arbitrary 256 bit vector, let's name it $x$, as a combination (using binary coefficients $b_i$) of the blake2 digests of the messages that were leaked, name them $v_i$:
 $$
 x = \sum_i b_i \cdot v_i
 $$
@@ -76,14 +85,214 @@ e(pk, H(m)) = e(g_1, \sigma) = e(pk, \sum_i \gamma_i \cdot H(m_i)) = \prod_i e(p
 = \prod_i e(pk, H(m_i))^{\gamma_i} = \prod_i e(g_1, \sigma_i)^{\gamma_i} = e(g_1, \sum_i \gamma_i \cdot \sigma_i)
 $$
 
-Simply put, if we can write our our hash as a combination of the other hashes, then too we can forge the corresponding signature as the same combination of the corresponding signatures!
+Simply put, if we can write our own blake2 hash as a combination of the other blake2 hashes, then too we can forge the corresponding signature as the same combination of the corresponding signatures! Note that 256 is the minimum number of bit arrays necessary to represent an arbitrary 256 bit array. A similar way to think about this are vector bases in linear algebra. It is obvious the puzzle organisers chose these 256 values at will, as one might expect the chances of 256 random vectors not being enough to represent the 256 dimensional space considerably high.
 
-Note that 256 is the minimum number of bit arrays necessary to represent an arbitrary 256 bit array. A similar way to think about this are vector bases in linear algebra. It is obvious the puzzle organisers chose these 256 values at will, as one might expect the chances of 256 random vectors not being enough to represent the 256 dimensional space considerably high.
+But how do we find such combination? Let's recall that before signing our message, we hash it via blake2 and then map it into a group element via the Pedersen Hash. Since each message $m_i$ has such a hash, we can assemble these into a matrix:
+
+$$
+\begin{bmatrix}
+b^{m_1}_{1} & b^{m_1}_{2} &\cdots & b^{m_1}_{256} \\
+b^{m_2}_{1} & b^{m_2}_{2} &\cdots & b^{m_2}_{256} \\
+\cdots &\cdots &\cdots&\cdots \\
+b^{m_{256}}_{1} & b^{m_{256}}_{2} &\cdots & b^{m_{256}}_{256}\\
+\end{bmatrix}
+\begin{bmatrix}
+           P_1 \\
+           P_2 \\
+           \vdots \\
+           P_{256}
+\end{bmatrix}
+= \begin{bmatrix}
+           H(m_1) \\
+           H(m_2)\\
+           \vdots \\
+           H(m_{256})
+\end{bmatrix}
+
+\longleftrightarrow
+
+\cdot \overrightarrow{P} = M \cdot \overrightarrow{H(m)} 
+$$
+
+We want to find coefficients $\gamma_i$ to represent the blake2 binary array digest of our original message, $x_i$, such that:
+
+$$
+\sum_i x_i \cdot P_i = \sum_i \gamma_i \cdot H(m_i) = \sum_i \gamma_i \cdot (\sum_j M_{ij} \cdot P_j) = \sum_j (\sum_i \gamma_i \cdot M_{ij}) \cdot P_j
+$$
+
+The coefficients $\gamma_i$ we look for must allow us to write the intermediate hash of our message as linear combination of the other intermediate hashes. Meaning our coefficients will be the result of solving the following equation:
+
+$$
+x_j = \sum_i M_{ij} \cdot \gamma_i
+
+\longleftrightarrow
+
+\begin{bmatrix}
+           x_1 \\
+           x_2 \\
+           \vdots \\
+           x_{256}
+\end{bmatrix}
+=
+\begin{bmatrix}
+b^{m_1}_{1} & b^{m_1}_{2} &\cdots & b^{m_1}_{256} \\
+b^{m_2}_{1} & b^{m_2}_{2} &\cdots & b^{m_2}_{256} \\
+\cdots &\cdots &\cdots&\cdots \\
+b^{m_{256}}_{1} & b^{m_{256}}_{2} &\cdots & b^{m_{256}}_{256}\\
+\end{bmatrix}
+\begin{bmatrix}
+           \gamma_1 \\
+           \gamma_2 \\
+           \vdots \\
+           \gamma_{256}
+\end{bmatrix}
+
+\longleftrightarrow
+
+\overrightarrow{x} = M \cdot \overrightarrow{\gamma}
+$$
 
 All that is left is writing this into a bit of code to create our forged signature.
 
 ## Code implementation
 
+As described above, the whole basis of our forgery is on solving this equation:
+
+$$
+\overrightarrow{x} = M \cdot \overrightarrow{\gamma}
+$$
+
+To do this, we will employ the help of [Sage](https://www.sagemath.org/), a powerful and open-source mathematics software. You can choose to install it, or run it directly from your browser via [CoCalc](https://cocalc.com/projects).
+
+But first, we need to transform our leaked messages into the matrix $M$ described above. We can do so with this bit of rust code:
+
+```rs
+fn bytes_to_bits_string(bytes: &[u8]) -> String {
+    let bits = bytes_to_bits(bytes);
+    let mut s = String::with_capacity(bits.len());
+    for bit in bits {
+        if bit {
+            s.push('1');
+        } else {
+            s.push('0');
+        }
+    }
+    return s;
+}
+
+fn write_msg_to_file(msg: &[u8], mut file: &File) {
+    let blake = hash_to_curve(msg).0;
+    let string = bytes_to_bits_string(&blake);
+    file.write_all(string.as_ref()).unwrap();
+    file.write_all(b"\n").unwrap();
+}
+
+fn main() {
+    [...]
+    let mut file = File::create("bit_vectors.txt").unwrap();
+        println!("{}", ms.len());
+        for m in ms {
+        write_msg_to_file(&m, &file);
+    }
+    [...]
+}
+```
+Which will save the $M$ matrix as a text file, [bit_vectors.txt](./bit_vectors.txt). To complete the equation described above, we need to specify $\overrightarrow{x}$, the binary vector resulting of hashing via blake2 our username. This is achieved via this bit of code:
+
+```rs
+let m = b"deenz";
+let (_digest_hash, _digest_point) = hash_to_curve(m);
+println!("{}", bytes_to_bits_string(&digest_hash));
+```
+
+In other words, a lover of sardines will see themselves represented as the following binary vector:
+
+```
+1100111011001010011000100010011011111001111111101110101100011100001001110011011100010010101000000111000111001001000100010001001101011010100101011001101011010000110000001100110010100110000111000110010110100110111010110100111000100010110010111101100011000000
+```
+
+We can now take our $M$ matrix and this binary vector, $\overrightarrow{x}$, into SageMath, and run the following program:
+
+```python - well not really but does the trick for sage
+A = list()
+
+# The file bit_vectors.txt was defined by our Rust code
+with open("bit_vectors.txt", 'r') as f:
+  for line_index, line in enumerate(f):
+      A.append(list())
+      for bit_index in range(0, 256):
+          A[line_index].append(int(line[bit_index]))
+
+# Defining the order of the curve
+P = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001
+F = FiniteField(P)
+# Now defining this matrix over this finite field
+M = Matrix(F, A)
+
+# Binary vector resulting from blake2 hashing our username
+username_hash = '1100111011001010011000100010011011111001111111101110101100011100001001110011011100010010101000000111000111001001000100010001001101011010100101011001101011010000110000001100110010100110000111000110010110100110111010110100111000100010110010111101100011000000'
+username_bits = vector(F, [int(i) for i in username_hash])
+
+# The resulting gamma coefficients from solving the equation
+gamma = M.solve_left(username_bits)
+gamma = vector(F, gamma)
+# Printing the generator multipliers
+print('[')
+for item in gamma:
+    content = str(hex(item))[2:]
+    # Important to pad this hex string with zeroes, else rust hex::decode will not work
+    print('"' + '0'*(64 - len(content)) + content + '",')
+print(']')
+```
+
+This will print our $\overrightarrow{\gamma}$ coefficients. In the rust code provided, these get assigned into the `coefficient_strings` variable. All that is left is to compute the linear combination:
+
+$$
+H(m) = \sum_i \gamma_i \cdot H(m_i)
+$$
+
+Which can be done in rust via the following code:
+
+```rs
+// Transform these coefficients into field elements
+let mut coeffs: Vec<ScalarField> = Vec::new();
+for coeff_str in coefficient_strings {
+    coeffs.push(ScalarField::from_be_bytes_mod_order(&hex::decode(coeff_str).unwrap()));
+}
+
+// Forging the signature as the described linear combination of known signatures
+let mut forged_sig = G1Projective::default();
+for (coeff_i, sig_i) in coeffs.iter().zip(sigs.iter()) {
+    forged_sig += sig_i.mul(coeff_i.into_repr());
+}
+
+// Checking that it all works out as expected
+verify(pk, m, forged_sig.into_affine());
+```
+
+And that's it! We have forged a signature! We can see the signature printed in console by simply running: 
+
+```rs
+let mut hexsig = vec![0u8; 48];
+G1Affine::serialize(
+    &forged_sig.into_affine(),
+    hexsig.as_mut_slice(),
+).unwrap();
+println!("Forged signature = {:?}", hexsig.encode_hex::<String>());
+```
+Which will give us the following hex string:
+```
+d208d88420ae3706208120439e314a3dcc2937674f7139b5219af792e692d889e300929cdc919ac8e5525a429b64ed00
+```
+
+## Fixing the problem
+
+As [Ben Edgington](https://hackmd.io/@benjaminion/bls12-381#Hash-and-check) explains, the simplest approach to hash an arbitrary message to the curve is via the _hash-and-check_ algorithm, which can be implemented as the following: 
+1. Take our message and hash it via blake2: $h \leftarrow blake2(m) \mod p$, where $m$ is the message and $p$ is the field modulus
+2. If $h$ does not satisfy the curve equation (that is, there is no point in the curve with $h$ as the value for the x-coordinate), increase it by one: $h \leftarrow h + 1 \mod p$
+3. Continue increasing until $h$ falls in the curve, returning the corresponding point $(x, y)$
+
+This implementation would base its security on the collision resistance of the hash function, while the given implementation via Pedersen hashes allows for reconstruction of new and **valid** signatures using past public data.
 
 Trying it out
 =============
