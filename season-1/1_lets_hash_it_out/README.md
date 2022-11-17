@@ -2,7 +2,7 @@
 
 What we wish to do is try and exploit the authentication system that Alice has designed. The only information we are provided at first is the 256 signatures (conveniently chosen number, as we'll see) that were leaked, as well their corresponding hashed messages and Alice's public key (necessary to validate these signatures).
 
-## BLS signatures
+## BLS Signatures
 
 The signing scheme being used is a BLS signature (Boneh, Lynn and Shacham). This scheme relies on pairing-friendly curves (namely BLS12-381), and supports non interactive aggregation properties: given a collection of signatures anyone can produce a short signature that authenticates the entire collection. We'll see how that helps us later.
 
@@ -56,7 +56,7 @@ $$
 e(g_1, \sigma) = e(pk, H(m))
 $$
 
-## Forging signatures
+## Forging Signatures
 
 BLS signature schemes, as well as blake2 hashes, are all well battle tested, and it is well unlikely that a simple online problem is asking us to find a hash collision.
 
@@ -178,7 +178,7 @@ $$
 
 All that is left is writing this into a bit of code to create our forged signature.
 
-## Code implementation
+## Code Implementation
 
 As described above, the whole basis of our forgery is on solving this equation:
 
@@ -309,7 +309,7 @@ Which will give us the following hex string:
 d208d88420ae3706208120439e314a3dcc2937674f7139b5219af792e692d889e300929cdc919ac8e5525a429b64ed00
 ```
 
-## Fixing the problem
+## Fixing the Problem
 
 As [Ben Edgington](https://hackmd.io/@benjaminion/bls12-381#Hash-and-check) explains, the simplest approach to hash an arbitrary message to the curve is via the _hash-and-check_ algorithm, which can be implemented as the following: 
 1. Take our message and hash it via blake2: $h \leftarrow blake2(m) \mod p$, where $m$ is the message and $p$ is the field modulus
