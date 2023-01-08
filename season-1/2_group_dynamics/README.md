@@ -1,6 +1,6 @@
 # ZKHACK #1: Group Dynamics
 
-What we wish to do is to recover the secret that Alice used for a trusted setup, as part of a Groth16 proof scheme. The information we are provided is the fact that she used a 128-bit number as her secret, $s$. We are also given two arrays of **elliptic curve points**. The first one of these containing 127 points of the $G_1$ group, while the second one contains 32 points of the $G_2$ group. We will see later that this is actually not the case, but to continue with the explanation let's assume for now these points lie in $G_1$ and $G_2$.
+What we wish to do is to recover the secret that Alice used for a trusted setup, as part of a Groth16 proof scheme. The information we are provided is the fact that she used a 128-bit number as her secret, $s$, and we are also given two arrays of **elliptic curve points**. 
 
 These points we are given are the result of performing the following operations using the secret $s$:
 - $[s^i] \cdot G_1$ for $0 ⩽ i ⩽ 62$
@@ -8,16 +8,29 @@ These points we are given are the result of performing the following operations 
 - $[β \cdot s^i] \cdot G_1$ for $0 ⩽ i ⩽ 31$
 - $[s^i] \cdot G_2$ for $0 ⩽ i ⩽ 31$
 
+We can see the first of these arrays is the result of adding a generator point $G_1$ onto itself a given number of times. Similarly, the second of these arrays is the result of adding a different generator point $G_2$ onto itself another given number of times. We are not given the values for $α$ and $β$, but, as we will see, this is not an issue.
+
+Before we jump onto the solution, we will go through a quick refresher on prime order subgroups.
+
 ## Prime Order Subgroups
-As a quick reminder, the discrete logarithm problem on a given group $G$ consists of finding an integer $k$ such that:
+Let $G$ be any group, where we define the group operation by multiplication ($\cdot$) and its identity element by $1$. If we let $b$ be any element of $G$, then for any positive integer $k$ the expression $b^k$ denotes the product of $b$ with itself $k$ times.
+
+$$
+b^k = b \cdot b \cdot \cdot \cdot b
+$$
+
+The **discrete logarithm problem** is defined as finding an integer $k$ such that:
 $$
 b^k = b \cdot b \cdot \cdot \cdot b = a
 $$
-The group operation is also sometimes represented using additive notation, $+$, and repeated applications are described as scalar multiplication, $\cdot$. Using this different notation, the discrete logarithm problem can be represented as:
+
+Depending on the group over which we are operating, the group operation can be represented using additive notation, $+$. Repeated applications are then described as scalar multiplication, $\cdot$. Using this different notation, the **discrete logarithm problem** can be represented as finding an integer $k$ such that:
+
 $$
 b \cdot k = b + b + . . . + b = a
 $$
-This is the notation that was used to describe the problem, and the notation we will use for solving it. Several important algorithms in cryptography base their security on the assumption that the discrete logarithm problem over carefully chosen groups has no efficient solution.
+
+This is the notation that was used to describe the problem, and the notation we will use for solving it. Several important algorithms in cryptography base their security on the assumption that **the discrete logarithm problem over carefully chosen groups has no efficient solution**, the key part there being these _carefully chosen groups_.
 
 For this problem, we are given several group elements, which are the result of performing $x \cdot G$, where $x$ is a group element and $G$ is the generator point. The order of the group, $G1$, is a natural number $n = \prod_{i=1}^{r}p_i$, where $p_i$ are its prime factors. The discrete logarithm problem then consists of computing $x$ from $x \cdot G$.
 
