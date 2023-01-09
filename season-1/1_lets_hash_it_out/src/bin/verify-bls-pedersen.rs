@@ -45,7 +45,6 @@ fn main() {
 
   // Writing data to file
   let mut file = File::create("bit_vectors.txt").unwrap();
-  println!("{}", ms.len());
   for m in ms {
     write_msg_to_file(&m, &file);
   }
