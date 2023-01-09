@@ -45,15 +45,15 @@ Then, using these $x_i = x\ mod\ p_i$, we can efficiently compute $x\ mod\ n = x
 
 In reality, these iterations are done using the [baby-step giant-step](https://en.wikipedia.org/wiki/Baby-step_giant-step) algorithm, so each only takes $O(\sqrt{p_i})$ time. The time complexity for the whole problem therefore becomes $O(\sqrt{p})$ with $p$ being the largest prime factor of $n$. 
 
-To mazimize computation time and thus the security of the system, we would look into maximizing this largest prime factor. ???
+To mazimize computation time and thus the security of the system, we would look into maximizing this largest prime factor. But, as we will see, this is not enough to guarantee the security of the system.
 
 ## Elliptic Curves
 
-The elliptic curve [_BLS12-381_](https://hackmd.io/@benjaminion/bls12-381#About-curve-BLS12-381) is defined as as:
+The elliptic curve [BLS12-381](https://hackmd.io/@benjaminion/bls12-381#About-curve-BLS12-381) is defined as as:
 $$
 E_1 : y^2 = x^3 + 4 \text{ over } \mathbb{F_p}
 $$
-While its twist is defined as:
+While its [twist](https://en.wikipedia.org/wiki/Twists_of_elliptic_curves) is defined as:
 $$
 E_2 : y^2 = x^3 + 4\cdot(1 + u) \text{ over } \mathbb{F_{p^2}} 
 $$
@@ -82,8 +82,8 @@ q = 3 \cdot 11^2 \cdot 10177^2 \cdot 859267^2 \cdot 52437899^2 = 763296033842165
 $$
 
 By doing this we can define these two corresponding groups:
-- $G1$ is the subgroup of order $r$ of the _BLS12_381_ curve.
-- $G2$ is the subgroup of order $r$ of the quadratic twist of the _BLS12_381_ curve.
+- $G1$ is the subgroup of order $r$ of the BLS12_381 curve.
+- $G2$ is the subgroup of order $r$ of the quadratic twist of the BLS12_381 curve.
 Note that the order of these two has to be the same for the pairing to work.
 
 ## Solving our Discrete Logarithm Problem
@@ -93,9 +93,32 @@ As covered, the Pohlig-Hellman Algorithm allows us to efficiently solve the disc
 
 However, just as we can use the smaller prime factors of the group order to _project_ curve elements into a large prime order subgroup, we can also use this same idea to _project_ curve elements into an _unsafe_ subgroup.
 
-If we multiply $G_1$ (the generator point for $E_1$) by $r$, the order of the subgroup that we can generate when using this result as generator point is $n_1 := 3 \cdot 11 \cdot 10177 \cdot 859267 \cdot 52437899$. As such, for our secret $s$, the result of $s \cdot (r \cdot G_1)$ will be in this subgroup, and we also have that $s \cdot (r \cdot G_1) = r \cdot (s \cdot G_1)$.
+If we multiply $G_1$ (the generator point for $E_1$) by $r$, the order of the subgroup that we can generate when using this result as generator point is $n_1 = 3 \cdot 11 \cdot 10177 \cdot 859267 \cdot 52437899$. As such, for our secret $s$, the result of $s \cdot (r \cdot G_1)$ will be in this subgroup, and we also have that $s \cdot (r \cdot G_1) = r \cdot (s \cdot G_1)$.
 
-After this _projection_ we can use the Pohlig-Hellman Algorithm to find $s_1 = s \mod n_1$, but we will still be missing some information about the secret $s$. We can gather more information by using $E_2$ and its generator point $G_2$.
+After this _projection_ we can use the Pohlig-Hellman Algorithm to find $s_1 = s \mod n_1$. We can do this by using [Sage](https://www.sagemath.org/) and its built-in implementation of the Pohlig-Hellman algorithm:
+
+```python
+# Constructing the field F1 as specified, with p being the prime defined above
+p = 0x1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab
+F1 = GF(p)
+E1 = EllipticCurve(F1,[0,4])
+
+# Elliptic curve point corresponding to ts1_0, which is our generator point
+G1 = E1(
+    0x0F99F411A5F6C484EC5CAD7B9F9C0F01A3D2BB73759BB95567F1FE4910331D32B95ED87E36681230273C9A6677BE3A69, 
+    0x12978C5E13A226B039CE22A0F4961D329747F0B78350988DAB4C1263455C826418A667CA97AC55576228FC7AA77D33E5
+)
+# Elliptic curve point corresponding to ts1_1, which is our generator point added to itself s times
+    0x16C2385B2093CC3EDBC0F2257E8F23E98E775F8F6628767E5F4FC0E495285B95B1505F487102FE083E65DC8E9E3A9181, 
+    0x0F4B73F63C6FD1F924EAE2982426FC94FBD03FCEE12D9FB01BAF52BE1246A14C53C152D64ED312494A2BC32C4A3E7F9A
+)
+
+# Computing the discrete logarithm using the Pohlig-Hellman, baby step giant step algorithm
+print(discrete_log(sG1, G1, operation='+'))
+```
+
+
+And we get as a result that $s_1 = s \mod n_1 = 2335387132884273659$. We are still missing some information about the secret $s$. We can gather more information by using $E_2$ and its generator point $G_2$.
 
 The [BLS12-381](https://hackmd.io/@benjaminion/bls12-381) curve specifications give us the cofactor of $E_2$: the order of $E_2$ must then be $r \cdot \textrm{cofactor}$ by its definition. This is because the order of the _safe_ subgroup of $E_2$ must be the same as in $E_1$ for the pairing to work. The prime factors of this cofactor are:
 
