@@ -93,9 +93,7 @@ As covered, the Pohlig-Hellman Algorithm allows us to efficiently solve the disc
 
 However, just as we can use the smaller prime factors of the group order to _project_ curve elements into a large prime order subgroup, we can also use this same idea to _project_ curve elements into an _unsafe_ subgroup.
 
-If we multiply $G_1$ (the generator point for $E_1$) by $r$, the order of the subgroup that we can generate when using this result as generator point is $n_1 = 3 \cdot 11 \cdot 10177 \cdot 859267 \cdot 52437899$. As such, for our secret $s$, the result of $s \cdot (r \cdot G_1)$ will be in this subgroup, and we also have that $s \cdot (r \cdot G_1) = r \cdot (s \cdot G_1)$.
-
-After this _projection_ we can use the Pohlig-Hellman Algorithm to find $s_1 = s \mod n_1$. We can do this by using [Sage](https://www.sagemath.org/) and its built-in implementation of the Pohlig-Hellman algorithm:
+Let's first find which are the prime factors of $G_1$. We can do this by using [Sage](https://www.sagemath.org/):
 
 ```python
 # Constructing the field F1 as specified, with p being the prime defined above
@@ -104,39 +102,142 @@ F1 = GF(p)
 E1 = EllipticCurve(F1,[0,4])
 
 # Elliptic curve point corresponding to ts1_0, which is our generator point
-G1 = E1(
+g1 = E1(
     0x0F99F411A5F6C484EC5CAD7B9F9C0F01A3D2BB73759BB95567F1FE4910331D32B95ED87E36681230273C9A6677BE3A69, 
     0x12978C5E13A226B039CE22A0F4961D329747F0B78350988DAB4C1263455C826418A667CA97AC55576228FC7AA77D33E5
 )
-# Elliptic curve point corresponding to ts1_1, which is our generator point added to itself s times
-    0x16C2385B2093CC3EDBC0F2257E8F23E98E775F8F6628767E5F4FC0E495285B95B1505F487102FE083E65DC8E9E3A9181, 
-    0x0F4B73F63C6FD1F924EAE2982426FC94FBD03FCEE12D9FB01BAF52BE1246A14C53C152D64ED312494A2BC32C4A3E7F9A
-)
 
-# Computing the discrete logarithm using the Pohlig-Hellman, baby step giant step algorithm
-print(discrete_log(sG1, G1, operation='+'))
+# 3 * 11 * 10177 * 859267 * 52437899 * 
+# 52435875175126190479447740508185965837690552500527637822603658699938581184513
+print(factor(g1.order()))
 ```
 
+Let's see how this _projection_ works in practice by finding the value for $s \mod p_i^1$, where $p_i^1$ is one of these prime factors of $G_1$. If we multiply $G_1$ by $\frac{n_1}{p_i^1}$, where $n_1$ is the order of the group, the order of the subgroup that we can generate when using this result as our generator point will be $p_i^1$. Note that multiplying by $\frac{n_1}{p_i^1}$ corresponds to multiplying by all the other prime factors of $G_1$ that are not $p_i^1$.
 
-And we get as a result that $s_1 = s \mod n_1 = 2335387132884273659$. We are still missing some information about the secret $s$. We can gather more information by using $E_2$ and its generator point $G_2$.
+For our secret $s$, the result of $s \cdot (\frac{n_1}{p_i^1} \cdot G_1)$ will be in this subgroup of order $p_i^1$, and we also have that $s \cdot (\frac{n_1}{p_i^1} \cdot G_1) = \frac{n_1}{p_i^1} \cdot (s \cdot G_1)$.
 
-The [BLS12-381](https://hackmd.io/@benjaminion/bls12-381) curve specifications give us the cofactor of $E_2$: the order of $E_2$ must then be $r \cdot \textrm{cofactor}$ by its definition. This is because the order of the _safe_ subgroup of $E_2$ must be the same as in $E_1$ for the pairing to work. The prime factors of this cofactor are:
+After we have done this _projection_ for $p_i^1$, we can use the implementation of the Pohlig-Hellman algorithm provided by Sage to find $s_i^1 = s \mod p_i^1$.
+
+We can extract more information about the secret $s$ by repeating this same procedure with the prime factors of $G_2$. From the specifications of the curve, we know that these are:
 
 $$
-\textrm{cofactor} = 13^2 \cdot 23^2 \cdot 2713 \cdot 11953 \cdot 262069 \cdot \\ 40209603535950732159472636672046657539270680067118115942565678586877 \\
+E_2: 13 \cdot 23 \cdot 2713 \cdot 11953 \cdot 262069 \cdot \\ 
+52435875175126190479447740508185965837690552500527637822603658699938581184513 \cdot \\
+40209603535950732159472636672046657539270680067118115942565678586877 \\
 7272553337714697862511267018014931937703598282857976535744623203249
 $$
 
-The small prime factors among these represent a vulnerability, as covered. If we denote the last of these factors as $bp$, we can do the same trick as before to _project_ curve elements into an _unsafe_ group: $bp \cdot r \cdot G_2$ and $bp \cdot r \cdot (s\cdot G_2)$, should both be in a subgroup of order $n_2 = 13^2 \cdot 23^2 \cdot 2713 \cdot 11953 \cdot 262069$.
+We can do the same trick as before to _project_ curve elements into an _unsafe_ group with a single small prime factor. If we multiply $G_1$ by $\frac{n_2}{p_i^2}$, where $n_2$ is the order of the group, the order of the corresponding subgroup will be $p_i^2$.
 
-However, $bp \cdot r \cdot G_2$ may generate a subgroup of order smaller than $n_2$. We know that the order of $bp \cdot r \cdot G_2$ is the smallest integer $n'_2$ such that $n'_2 \cdot bp \cdot r \cdot G_2$ equals the point at infinity.
+For our secret $s$, the result of $s \cdot (\frac{n_2}{p_i^2} \cdot G_2)$ will be in this subgroup of order $p_i^2$, and we also have that $s \cdot (\frac{n_2}{p_i^2} \cdot G_2) = \frac{n_2}{p_i^2} \cdot (s \cdot G_1)$.
 
-The point at infinity is the identity element of the elliptic curve arithmetic curve, and is often denoted as $\mathcal{O}$. For any point $\mathcal{P}$, we have that $\mathcal{P} + \mathcal{O} = \mathcal{O} + \mathcal{P} = \mathcal{P}$. The groups we are working with are cyclic in nature, meaning that any point is a generator, except the point at infinity as we have just seen.
+Now, let's turn this idea into actual code by again booting up Sage:
 
-We can therefore iterate over the prime factors of $n_2$ until we find this smallest integer $n'_2 = 2713 \cdot 11953 \cdot 262069$. Now, if we multiply $G_2$ by $13^2 \cdot 23 ^2 \cdot bp \cdot r$, the order of the subgroup we generate when using this result as generator point is $n'_2$. We can then define our base point to be $ B = 13^2 \cdot 23 ^2 \cdot bp \cdot r \cdot G_2$
+```python
+# Constructing the fields F1 and F2 as specified, with p being the prime defined above
+q = 0x1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab
+F1 = GF(q)
+R.<x> = PolynomialRing(F1)
+F2.<u> = F1.extension(x^2+1)
 
-As such, for our secret $s$, the result of $s \cdot B$, and we also have that $s \cdot B = 13^2 \cdot 23 ^2 \cdot bp \cdot r \cdot (s \cdot G_2)$. With this _projection_ we can again use the Pohlig-Hellman Algorithm to find $s_2 = s \mod n'_2$.
+E1 = EllipticCurve(F1,[0,4])
+E2 = EllipticCurve(F2,[0,4*(1+u)])
 
-We now have $s_1 = s \mod n_1$ and $s_2 = s \mod n'_2$, and, since $\textrm{gcd}(n_1, n'_2) = 1$, we can apply the Chinese remainder theorem to compute $s' = s \mod (n_1 \cdot n'_2)$.
+# Order of the usual subgroup of the BLS12_381 curve
+r = 0x73EDA753299D7D483339D80809A1D80553BDA402FFFE5BFEFFFFFFFF00000001
+# The big prime defined earlier
+bp = 0x8D9F503DEEEB5D5C423572788BEA4D6AE0490C5AFCA1EEB2A9D75BB98B95878AFAB9C0DA5CF222C377D87384D026CD73826D177200C0D3B1
 
-We still fall short of uncovering the full secret: $\log_2(s') \approx 105$, while we are told that the size of $s$ is 128 bits. We can then do an exhaustive search over the remaining bits: for some  $k \in \mathbb{N}, k < 2^{22}$, we have that $s = k\cdot(n_1 \cdot n'_2) + s'$.
+# Elliptic curve point corresponding to ts1_0, which is our generator point g1
+g1 = E1(
+    0x0F99F411A5F6C484EC5CAD7B9F9C0F01A3D2BB73759BB95567F1FE4910331D32B95ED87E36681230273C9A6677BE3A69, 
+    0x12978C5E13A226B039CE22A0F4961D329747F0B78350988DAB4C1263455C826418A667CA97AC55576228FC7AA77D33E5
+)
+# Elliptic curve point corresponding to ts1_1, which is our generator point g1 added to itself s times
+sg1 = E1(
+    0x16C2385B2093CC3EDBC0F2257E8F23E98E775F8F6628767E5F4FC0E495285B95B1505F487102FE083E65DC8E9E3A9181,
+    0x0F4B73F63C6FD1F924EAE2982426FC94FBD03FCEE12D9FB01BAF52BE1246A14C53C152D64ED312494A2BC32C4A3E7F9A
+)
+# The prime factors of our g1
+ord_g1 = 3 * 11 * 10177 * 859267 * 52437899 * r
+
+# Elliptic curve point corresponding to ts2_0, which is our generator point g2
+g2 = E2(
+    0x1173F10AD9F2DBEE8B6C0BB2624B05D72EEC87925F5C3633E2C000E699A580B842D3F35AF1BE77517C86AEBCA1130AE4 + u*0x0434043A97DA28EF7100AE559167FC613F057B85451476ABABB27CFF0238A32831A0B4D14BA83C4F97247C8AC339841F, 
+    0x0BEBEC70446CB91BB3D4DC5C8412915E99D612D8807C950AB06BC41583F528FDA9F42EC0FE7CD2991638187EF44258D3 + u*0x19528E3B5C90C73A7092BB9AFDC73F86C838F551CCD9DBBA5CC6244CF76AB3372193DBE5B62383FAAE728728D4C1E649
+)
+# Elliptic curve point corresponding to ts2_1, which is our generator point g2 added to itself s times
+sg2 = E2(
+    0x165830F15309C878BFE6DD55697860B8823C1AFBDADCC2EF3CD52B56D4956C05A099D52FE4545816830C525F5484A5FA + u*0x179E34EB67D9D2DD32B224CDBA57D4BB7CF562B4A3E33382E88F33882D91663B14738B6772BF53A24653CE1DD2BFE2FA, 
+    0x150598FC4225B44437EC604204BE06A2040FD295A28230B789214B1B12BF9C9DAE6F3759447FD195E92E2B42E03B5006 + u*0x12E23B19E117418C568D4FF05B7824E5B54673C3C08D8BCD6D8D107955287A2B075100A51C81EBA44BF5A1ABAD4764A8
+)
+# The prime factors of our g2
+ord_g2 = 13 * 23 * 2713 * 11953 * 262069 * bp * r
+
+# Small prime factors we will be working with
+# We don't use the bigger ones because those make Pohlig-Hellman unfeasible
+p_g1 = [3, 11, 10177, 859267, 52437899]
+p_g2 = [13, 23, 2713, 11953, 262069]
+
+# Returns s mod p, where p must be a small factor of ord_g1
+def compute_s_mod_p_g1(p):
+    q = Integer(ord_g1/p)
+    return discrete_log(q * sg1, q * g1, operation='+')
+
+# Returns s mod p, where p must be a small factor of ord_g2
+def compute_s_mod_p_g2(p):
+    q = Integer(ord_g2/p)
+    return discrete_log(q * sg2, q * g2, p, operation='+')
+    
+# Running the Pohlig-Hellman algorithm for all of the small factors present
+s_mod_p_g1 = [compute_s_mod_p_g1(n) for n in p_g1]
+s_mod_p_g2 = [compute_s_mod_p_g2(n) for n in p_g2]
+
+# Computing via the Chinese remainder theorem what we can extract from the secret s
+s_prime = crt(s_mod_p_g1 + s_mod_p_g2, p_g1 + p_g2)
+# Which equals to s mod n_prime, with n_prime being the product of all these small factors
+n_prime = reduce(lambda x, y: x*y, p_g1) * reduce(lambda x, y: x*y, p_g2)
+
+# 5592216610550884993006174526481245
+print(s_prime)
+# 38452154918091875653578148163112927
+print(n_prime)
+```
+
+After running the Pohlig-Hellman algorithm for all of these small factors, and adding all these contributions together via the Chinese remainder theorem, we now have $s' = s \mod n' = 5592216610550884993006174526481245$, where $n' = 38452154918091875653578148163112927$.
+
+We still fall short of uncovering the full secret, as $\log_2(s') \approx 112$, while we are told that the size of $s$ is 128 bits. And we can confirm this by trying to run the assertions in the challenge: they will fail.
+
+However, since we significantly reduced the brute-force space from 128 bits down to a measly 16 bits, we can look into simply running an exhaustive search over these remaining bits until we find the original secret. 
+
+Since $s' = s \mod n'$, there exists some $k \in \mathbb{N}$ such that $s = k \cdot n' + s'$. And we know as well that the value for $k$ has an upper bound at around $2^{16}$. Following with a little Rust code: 
+
+```rust
+let (_ts1, _ts2) = puzzle_data();
+
+let s_prime = Fr::from_str("5592216610550884993006174526481245").unwrap();
+let n_prime = Fr::from_str("38452154918091875653578148163112927").unwrap();
+
+for k in 0..2**16 {
+  let s = n_prime*Fr::from(k) + s_prime;
+  if _ts1[0].mul(s) == _ts1[1] && _ts2[0].mul(s) == _ts2[1] {
+    println!("{}", s);
+    return;
+  }
+}
+```
+
+Which gives us the following value for our secret:
+
+$$
+s = 0x56787654567876541234321012343210
+$$
+
+Or, in decimal representation:
+
+$$
+s = 114939083266787167213538091034071020048
+$$
+
+## Fixing the Problem
+As we saw, this vulnerability is introduced when we leave small prime factors as part of the group order. The way this is avoided is multiplying every point on the curve by a cofactor $q$, which is the product of all the other smaller prime factors of the group. As we saw, this way we get that both the BLS12-381 curve and its twist end up with order $r$.
