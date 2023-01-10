@@ -258,3 +258,8 @@ $$
 
 ## Fixing the Problem
 As we saw, this vulnerability is introduced when we leave small prime factors as part of the group order. The way this is avoided is multiplying every point on the curve by a cofactor $q$, which is the product of all the other smaller prime factors of the group. As we saw, this way we get that both the BLS12-381 curve and its twist end up with order $r$.
+
+Trying it out
+=============
+
+Use `cargo run --release` to see it in action
