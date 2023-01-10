@@ -10,8 +10,17 @@ fn main() {
     puzzle(PUZZLE_DESCRIPTION);
     let (_ts1, _ts2) = puzzle_data();
 
-    /* Your solution here! (s in decimal)*/
-    let s = Fr::from_str("0").unwrap();
+    let mut s = Fr::from_str("0").unwrap();
+    let s_prime = Fr::from_str("5592216610550884993006174526481245").unwrap();
+    let n_prime = Fr::from_str("38452154918091875653578148163112927").unwrap();
+
+    for k in 0..70000 {
+        s = n_prime*Fr::from(k) + s_prime;
+        if _ts1[0].mul(s) == _ts1[1] && _ts2[0].mul(s) == _ts2[1] {
+            println!("{}", s);
+            return;
+        }
+    }
 
     assert_eq!(_ts1[0].mul(s), _ts1[1]);
     assert_eq!(_ts2[0].mul(s), _ts2[1]);
