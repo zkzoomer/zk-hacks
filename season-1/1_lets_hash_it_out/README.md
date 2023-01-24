@@ -125,7 +125,7 @@ b^{m_{256}}_{1} & b^{m_{256}}_{2} &\cdots & b^{m_{256}}_{256}\\
            H(m_{256})
 \end{bmatrix}
 \longleftrightarrow
-\cdot \overrightarrow{P} = M \cdot \overrightarrow{H(m)} 
+\overrightarrow{P} = M \cdot \overrightarrow{H(m)} 
 $$
 
 We want to find coefficients $\gamma_i$ to represent the blake2 binary array digest of our original message, $x_i$, such that:
