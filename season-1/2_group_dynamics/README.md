@@ -1,4 +1,4 @@
-# ZKHACK #1: Group Dynamics
+# ZKHACK #2: Group Dynamics
 
 What we wish to do is to recover the secret that Alice used for a trusted setup, as part of a Groth16 proof scheme. The information we are provided is the fact that she used a 128-bit number as her secret, $s$, and we are also given two arrays of **elliptic curve points**. 
 
